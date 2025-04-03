@@ -68,8 +68,11 @@ public class CountryService {
     @Transactional
     public void syncCountriesFromExternalApi() {
         try {
+            System.out.println("Starting API sync - Attempting to fetch from: " + COUNTRIES_API_URL);
             ResponseEntity<Object[]> response = restTemplate.getForEntity(COUNTRIES_API_URL, Object[].class);
             Object[] countries = response.getBody();
+
+            System.out.println("Fetched " + (countries != null ? countries.length : 0) + " countries from API");
 
             if (countries != null) {
                 for (Object countryData : countries) {
@@ -97,12 +100,16 @@ public class CountryService {
                         // Save or update country
                         countryRepository.save(country);
                         
+                        System.out.println("Successfully processed country: " + commonName);
+                        
                     } catch (Exception e) {
+                        System.err.println("Error processing country: " + e.getMessage());
                         throw new CountryException("Error processing country: " + e.getMessage());
                     }
                 }
             }
         } catch (RestClientException e) {
+            System.err.println("API Connection Error: " + e.getMessage());
             throw new RestClientException("Failed to fetch data from external API: " + e.getMessage());
         }
     }
