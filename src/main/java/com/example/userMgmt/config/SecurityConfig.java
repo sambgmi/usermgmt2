@@ -37,11 +37,15 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html"
                 ).permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/countries/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/countries/**").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/api/countries/**").permitAll()
+                .requestMatchers(HttpMethod.DELETE, "/api/countries/**").permitAll()
                 .requestMatchers(HttpMethod.PUT, "/api/users/me").authenticated()
                 .requestMatchers(HttpMethod.PATCH, "/api/users/me/name").authenticated()
                 .requestMatchers(HttpMethod.PATCH, "/api/users/me/email").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
-                    .requestMatchers(HttpMethod.DELETE, "/api/users/me").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/users/me").authenticated()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
