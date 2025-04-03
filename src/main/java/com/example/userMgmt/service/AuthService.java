@@ -19,13 +19,11 @@ public class AuthService {
     private final JwtService jwtService;
 
     public AuthResponse register(RegisterRequest request) {
-        // Check if email exists
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new RuntimeException("Email already exists");
         }
 
-        // Create new user
-        var user = User.builder()
+        User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
@@ -33,12 +31,11 @@ public class AuthService {
 
         userRepository.save(user);
 
-        // Return response
         return AuthResponse.builder()
                 .message("User registered successfully")
                 .email(user.getEmail())
                 .name(user.getName())
-                .build();
+                .build();  // Remove token generation here
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -55,7 +52,7 @@ public class AuthService {
                 .message("Login successful")
                 .email(user.getEmail())
                 .name(user.getName())
-                .token(token)
+                .token(token)  // Only generate token during login
                 .build();
     }
 }
