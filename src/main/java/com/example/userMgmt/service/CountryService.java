@@ -3,6 +3,8 @@ package com.example.userMgmt.service;
 import com.example.userMgmt.dto.CountryDTO;
 import com.example.userMgmt.model.Country;
 import com.example.userMgmt.repository.CountryRepository;
+import com.example.userMgmt.exception.CountryException;
+import org.springframework.web.client.RestClientException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,12 +32,16 @@ public class CountryService {
 
     public CountryDTO getCountryById(Long id) {
         Country country = countryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Country not found"));
+                .orElseThrow(() -> new CountryException("Country not found with id: " + id));
         return mapToDTO(country);
     }
 
     @Transactional
     public CountryDTO createCountry(CountryDTO countryDTO) {
+        if (countryRepository.existsByCommonName(countryDTO.getCommonName())) {
+            throw new CountryException("Country already exists with name: " + countryDTO.getCommonName());
+        }
+        
         Country country = mapToEntity(countryDTO);
         Country savedCountry = countryRepository.save(country);
         return mapToDTO(savedCountry);
@@ -44,7 +50,7 @@ public class CountryService {
     @Transactional
     public CountryDTO updateCountry(Long id, CountryDTO countryDTO) {
         Country country = countryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Country not found"));
+                .orElseThrow(() -> new CountryException("Country not found with id: " + id));
         
         updateCountryFields(country, countryDTO);
         Country updatedCountry = countryRepository.save(country);
@@ -54,43 +60,50 @@ public class CountryService {
     @Transactional
     public void deleteCountry(Long id) {
         if (!countryRepository.existsById(id)) {
-            throw new RuntimeException("Country not found");
+            throw new CountryException("Country not found with id: " + id);
         }
         countryRepository.deleteById(id);
     }
 
     @Transactional
     public void syncCountriesFromExternalApi() {
-        ResponseEntity<Object[]> response = restTemplate.getForEntity(COUNTRIES_API_URL, Object[].class);
-        Object[] countries = response.getBody();
+        try {
+            ResponseEntity<Object[]> response = restTemplate.getForEntity(COUNTRIES_API_URL, Object[].class);
+            Object[] countries = response.getBody();
 
-        if (countries != null) {
-            for (Object countryData : countries) {
-                try {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> countryMap = (Map<String, Object>) countryData;
-                    
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> name = (Map<String, Object>) countryMap.get("name");
-                    
-                    Country country = Country.builder()
-                            .commonName((String) name.get("common"))
-                            .officialName((String) name.get("official"))
-                            .capital(extractCapital(countryMap))
-                            .region((String) countryMap.get("region"))
-                            .languages(convertMapToJson(countryMap.get("languages")))
-                            .currencies(convertMapToJson(countryMap.get("currencies")))
-                            .population(((Number) countryMap.get("population")).longValue())
-                            .flags(extractFlagUrl(countryMap))
-                            .build();
+            if (countries != null) {
+                for (Object countryData : countries) {
+                    try {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> countryMap = (Map<String, Object>) countryData;
+                        
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> name = (Map<String, Object>) countryMap.get("name");
+                        
+                        String commonName = (String) name.get("common");
+                        Country country = countryRepository.findByCommonName(commonName)
+                                .orElse(new Country());
+                        
+                        // Update country details
+                        country.setCommonName(commonName);
+                        country.setOfficialName((String) name.get("official"));
+                        country.setCapital(extractCapital(countryMap));
+                        country.setRegion((String) countryMap.get("region"));
+                        country.setLanguages(convertMapToJson(countryMap.get("languages")));
+                        country.setCurrencies(convertMapToJson(countryMap.get("currencies")));
+                        country.setPopulation(((Number) countryMap.get("population")).longValue());
+                        country.setFlags(extractFlagUrl(countryMap));
 
-                    if (!countryRepository.existsByCommonName(country.getCommonName())) {
+                        // Save or update country
                         countryRepository.save(country);
+                        
+                    } catch (Exception e) {
+                        throw new CountryException("Error processing country: " + e.getMessage());
                     }
-                } catch (Exception e) {
-                    System.err.println("Error processing country: " + e.getMessage());
                 }
             }
+        } catch (RestClientException e) {
+            throw new RestClientException("Failed to fetch data from external API: " + e.getMessage());
         }
     }
 

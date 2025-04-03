@@ -3,6 +3,8 @@ package com.example.userMgmt.service;
 import com.example.userMgmt.dto.AuthResponse;
 import com.example.userMgmt.dto.UpdateUserRequest;
 import com.example.userMgmt.dto.UserResponse;
+import com.example.userMgmt.exception.EmailAlreadyExistsException;
+import com.example.userMgmt.exception.UserException;
 import com.example.userMgmt.model.User;
 import com.example.userMgmt.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +19,7 @@ public class UserService {
 
     public UserResponse getCurrentUser(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                .orElseThrow(() -> new UserException("User not found with email: " + email));
         
         return UserResponse.builder()
                 .message("User details retrieved successfully")
@@ -44,11 +46,11 @@ public class UserService {
     @Transactional
     public UserResponse updateEmail(String currentEmail, String newEmail) {
         if (userRepository.existsByEmail(newEmail)) {
-            throw new RuntimeException("Email already taken");
+            throw new EmailAlreadyExistsException("Email already taken: " + newEmail);
         }
 
         User user = userRepository.findByEmail(currentEmail)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                .orElseThrow(() -> new UserException("User not found with email: " + currentEmail));
         
         user.setEmail(newEmail);
         User updatedUser = userRepository.save(user);
@@ -62,9 +64,16 @@ public class UserService {
 
     @Transactional
     public UserResponse updateUser(String currentEmail, UpdateUserRequest request) {
+        if (request == null) {
+            throw new UserException("Update request cannot be null");
+        }
+
         User user = userRepository.findByEmail(currentEmail)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                .orElseThrow(() -> new UserException("User not found with email: " + currentEmail));
         
+        if (!request.getEmail().equals(currentEmail) && userRepository.existsByEmail(request.getEmail())) {
+            throw new EmailAlreadyExistsException("Email already taken: " + request.getEmail());
+        }
         // Only check for email existence if email is being changed
         if (!request.getEmail().equals(currentEmail)) {
             boolean emailExists = userRepository.existsByEmail(request.getEmail());
